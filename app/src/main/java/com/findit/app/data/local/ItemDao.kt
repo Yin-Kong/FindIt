@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.Flow
 interface ItemDao {
 
     @Transaction
-    @Query("SELECT * FROM items ORDER BY createdAt DESC")
+    @Query("SELECT * FROM items ORDER BY name COLLATE NOCASE ASC, createdAt DESC")
     fun getAllItems(): Flow<List<ItemWithDetails>>
 
     @Transaction
@@ -30,7 +30,7 @@ interface ItemDao {
         OR tags.name LIKE '%' || :query || '%' 
         OR locations.name LIKE '%' || :query || '%' 
         OR alias.name LIKE '%' || :query || '%'
-        ORDER BY items.createdAt DESC
+        ORDER BY items.name COLLATE NOCASE ASC, items.createdAt DESC
     """)
     fun searchItems(query: String): Flow<List<ItemWithDetails>>
 

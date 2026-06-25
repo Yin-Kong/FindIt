@@ -2,6 +2,7 @@ package com.findit.app.ui.batch
 
 import android.content.ClipboardManager
 import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -67,6 +68,20 @@ fun BatchImportScreen(
                 null
             }
             viewModel.tryLoadFromClipboard(clipboardText)
+        }
+    }
+
+    LaunchedEffect(state.result, state.autoReturnAfterExecution) {
+        val result = state.result
+        if (result != null && state.autoReturnAfterExecution) {
+            val toastText = if (result.isSuccess) {
+                "AI整理完成：${result.summary}"
+            } else {
+                "AI整理完成：${result.summary}"
+            }
+            viewModel.reset()
+            onNavigateBack()
+            Toast.makeText(context, toastText, Toast.LENGTH_LONG).show()
         }
     }
 

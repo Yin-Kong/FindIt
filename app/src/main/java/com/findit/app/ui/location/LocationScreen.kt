@@ -8,9 +8,11 @@ import android.os.VibratorManager
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,13 +26,16 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragIndicator
 import androidx.compose.material.icons.filled.Merge
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -91,6 +96,16 @@ fun LocationScreen(
         }
     }
 
+    LaunchedEffect(state.error) {
+        state.error?.let { message ->
+            snackbarHostState.showSnackbar(
+                message = message,
+                duration = SnackbarDuration.Short
+            )
+            viewModel.clearError()
+        }
+    }
+
     // Merge confirmation dialog
     if (state.showMergeDialog && state.mergeSource != null && state.mergeTarget != null) {
         AlertDialog(
@@ -111,8 +126,34 @@ fun LocationScreen(
         )
     }
 
+    if (state.showTagAnalysisDialog && state.tagAnalysisResult != null) {
+        TagAnalysisDialog(
+            result = state.tagAnalysisResult!!,
+            page = state.tagAnalysisPage,
+            onShowFirst = viewModel::showFirstTagAnalysisPage,
+            onShowNext = viewModel::showNextTagAnalysisPage,
+            onDismiss = viewModel::closeTagAnalysisDialog
+        )
+    }
+
     Scaffold(
-        topBar = { TopAppBar(title = { Text("地点管理") }) },
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        if (state.isAnalysisMode) "已选择 ${state.selectedLocationIds.size} 个地点" else "地点管理"
+                    )
+                },
+                actions = {
+                    if (state.isAnalysisMode) {
+                        TextButton(onClick = viewModel::cancelAnalysisMode) { Text("取消") }
+                        TextButton(onClick = viewModel::analyzeSelectedLocations) { Text("分析") }
+                    } else {
+                        TextButton(onClick = viewModel::enterAnalysisMode) { Text("分析") }
+                    }
+                }
+            )
+        },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         LazyColumn(
@@ -122,19 +163,34 @@ fun LocationScreen(
         ) {
             item {
                 Text(
-                    "长按拖动一个地点到另一个上可合并；也可点击合并按钮选择目标",
+                    if (state.isAnalysisMode) {
+                        "选择一个或多个地点后点击「分析」，查看这些地点中物品标签的高频分布"
+                    } else {
+                        "长按拖动一个地点到另一个上可合并；也可点击合并按钮选择目标"
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 4.dp)
                 )
             }
 
-            item {
-                AddLocationRow(
-                    value = state.newName,
-                    onValueChange = viewModel::onNewNameChange,
-                    onAdd = viewModel::addLocation
-                )
+            if (!state.isAnalysisMode) {
+                item {
+                    AddLocationRow(
+                        value = state.newName,
+                        onValueChange = viewModel::onNewNameChange,
+                        onAdd = viewModel::addLocation
+                    )
+                }
+            } else {
+                item {
+                    Button(
+                        onClick = viewModel::analyzeSelectedLocations,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("分析选中地点")
+                    }
+                }
             }
 
             if (state.locations.isEmpty()) {
@@ -144,11 +200,14 @@ fun LocationScreen(
             items(state.locations, key = { it.id }) { location ->
                 val isSource = draggingId == location.id
                 val isTarget = hoveringTargetId == location.id
+                val isSelected = location.id in state.selectedLocationIds
 
                 DraggableLocationCard(
                     location = location,
                     isSource = isSource,
                     isTarget = isTarget,
+                    isAnalysisMode = state.isAnalysisMode,
+                    isSelected = isSelected,
                     otherLocations = state.locations.filter { it.id != location.id },
                     cardPositions = cardPositions,
                     onRegisterPosition = { rect -> cardPositions[location.id] = rect },
@@ -170,6 +229,7 @@ fun LocationScreen(
                         hoveringTargetId = null
                         viewModel.onDropOnTarget(target)
                     },
+                    onSelectionToggle = { viewModel.toggleLocationSelection(location) },
                     onDelete = { viewModel.deleteLocation(location) },
                     onMergeClick = { target -> viewModel.requestMerge(location, target) }
                 )
@@ -183,6 +243,8 @@ private fun DraggableLocationCard(
     location: Location,
     isSource: Boolean,
     isTarget: Boolean,
+    isAnalysisMode: Boolean,
+    isSelected: Boolean,
     otherLocations: List<Location>,
     cardPositions: Map<Long, Rect>,
     onRegisterPosition: (Rect) -> Unit,
@@ -190,6 +252,7 @@ private fun DraggableLocationCard(
     onDragTargetChanged: (Location?) -> Unit,
     onDragEnd: () -> Unit,
     onDropDetected: (Location) -> Unit,
+    onSelectionToggle: () -> Unit,
     onDelete: () -> Unit,
     onMergeClick: (Location) -> Unit
 ) {
@@ -233,70 +296,77 @@ private fun DraggableLocationCard(
                 scaleY = if (isDragging) 1.03f else targetScale
                 shadowElevation = if (isDragging) 16f else 0f
             }
-            .pointerInput(location.id) {
-                detectDragGesturesAfterLongPress(
-                    onDragStart = {
-                        isDragging = true
-                        dragStartRect = cardPositions[location.id]
-                        lastHoveredTargetId = null
-                        onDragStart()
-                    },
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        offsetX += dragAmount.x.roundToInt()
-                        offsetY += dragAmount.y.roundToInt()
+            .then(
+                if (isAnalysisMode) {
+                    Modifier.clickable(onClick = onSelectionToggle)
+                } else {
+                    Modifier.pointerInput(location.id) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = {
+                                isDragging = true
+                                dragStartRect = cardPositions[location.id]
+                                lastHoveredTargetId = null
+                                onDragStart()
+                            },
+                            onDrag = { change, dragAmount ->
+                                change.consume()
+                                offsetX += dragAmount.x.roundToInt()
+                                offsetY += dragAmount.y.roundToInt()
 
-                        val hovered = findBestDropTarget(
-                            dragStartRect = dragStartRect,
-                            offsetX = offsetX,
-                            offsetY = offsetY,
-                            sourceId = location.id,
-                            cardPositions = cardPositions,
-                            otherLocations = otherLocations
+                                val hovered = findBestDropTarget(
+                                    dragStartRect = dragStartRect,
+                                    offsetX = offsetX,
+                                    offsetY = offsetY,
+                                    sourceId = location.id,
+                                    cardPositions = cardPositions,
+                                    otherLocations = otherLocations
+                                )
+                                onDragTargetChanged(hovered)
+                                if (hovered?.id != null && hovered.id != lastHoveredTargetId) {
+                                    vibrateOnce(context)
+                                }
+                                lastHoveredTargetId = hovered?.id
+                            },
+                            onDragEnd = {
+                                isDragging = false
+                                val droppedOn = findBestDropTarget(
+                                    dragStartRect = dragStartRect,
+                                    offsetX = offsetX,
+                                    offsetY = offsetY,
+                                    sourceId = location.id,
+                                    cardPositions = cardPositions,
+                                    otherLocations = otherLocations
+                                )
+
+                                if (droppedOn != null) {
+                                    onDropDetected(droppedOn)
+                                }
+
+                                offsetX = 0
+                                offsetY = 0
+                                dragStartRect = null
+                                lastHoveredTargetId = null
+                                onDragTargetChanged(null)
+                                onDragEnd()
+                            },
+                            onDragCancel = {
+                                isDragging = false
+                                offsetX = 0
+                                offsetY = 0
+                                dragStartRect = null
+                                lastHoveredTargetId = null
+                                onDragTargetChanged(null)
+                                onDragEnd()
+                            }
                         )
-                        onDragTargetChanged(hovered)
-                        if (hovered?.id != null && hovered.id != lastHoveredTargetId) {
-                            vibrateOnce(context)
-                        }
-                        lastHoveredTargetId = hovered?.id
-                    },
-                    onDragEnd = {
-                        isDragging = false
-                        val droppedOn = findBestDropTarget(
-                            dragStartRect = dragStartRect,
-                            offsetX = offsetX,
-                            offsetY = offsetY,
-                            sourceId = location.id,
-                            cardPositions = cardPositions,
-                            otherLocations = otherLocations
-                        )
-
-                        if (droppedOn != null) {
-                            onDropDetected(droppedOn)
-                        }
-
-                        offsetX = 0
-                        offsetY = 0
-                        dragStartRect = null
-                        lastHoveredTargetId = null
-                        onDragTargetChanged(null)
-                        onDragEnd()
-                    },
-                    onDragCancel = {
-                        isDragging = false
-                        offsetX = 0
-                        offsetY = 0
-                        dragStartRect = null
-                        lastHoveredTargetId = null
-                        onDragTargetChanged(null)
-                        onDragEnd()
                     }
-                )
-            }
+                }
+            )
     ) {
         Card(
             modifier = Modifier.fillMaxWidth(),
             border = when {
+                isAnalysisMode && isSelected -> BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
                 isTarget -> BorderStroke(3.dp, MaterialTheme.colorScheme.primary)
                 isSource -> BorderStroke(2.dp, MaterialTheme.colorScheme.tertiary)
                 else -> null
@@ -313,6 +383,11 @@ private fun DraggableLocationCard(
                 },
                 supportingContent = {
                     when {
+                        isAnalysisMode && isSelected -> Text(
+                            "已选择用于标签分析",
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.bodySmall
+                        )
                         isSource -> Text(
                             "源地点：正在拖动，释放到目标地点上可合并",
                             color = MaterialTheme.colorScheme.onTertiaryContainer,
@@ -326,51 +401,143 @@ private fun DraggableLocationCard(
                     }
                 },
                 leadingContent = {
-                    Icon(
-                        Icons.Default.DragIndicator,
-                        contentDescription = "长按拖动合并",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    if (isAnalysisMode) {
+                        Checkbox(
+                            checked = isSelected,
+                            onCheckedChange = { onSelectionToggle() }
+                        )
+                    } else {
+                        Icon(
+                            Icons.Default.DragIndicator,
+                            contentDescription = "长按拖动合并",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 },
                 trailingContent = {
-                    Row {
-                        Box {
-                            IconButton(onClick = { showMergeMenu = true }) {
-                                Icon(
-                                    Icons.Default.Merge,
-                                    contentDescription = "合并到...",
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                            if (showMergeMenu && otherLocations.isNotEmpty()) {
-                                androidx.compose.material3.DropdownMenu(
-                                    expanded = showMergeMenu,
-                                    onDismissRequest = { showMergeMenu = false }
-                                ) {
-                                    otherLocations.forEach { other ->
-                                        DropdownMenuItem(
-                                            text = { Text("合并到「${other.name}」") },
-                                            onClick = {
-                                                showMergeMenu = false
-                                                onMergeClick(other)
-                                            }
-                                        )
+                    if (!isAnalysisMode) {
+                        Row {
+                            Box {
+                                IconButton(onClick = { showMergeMenu = true }) {
+                                    Icon(
+                                        Icons.Default.Merge,
+                                        contentDescription = "合并到...",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                if (showMergeMenu && otherLocations.isNotEmpty()) {
+                                    androidx.compose.material3.DropdownMenu(
+                                        expanded = showMergeMenu,
+                                        onDismissRequest = { showMergeMenu = false }
+                                    ) {
+                                        otherLocations.forEach { other ->
+                                            DropdownMenuItem(
+                                                text = { Text("合并到「${other.name}」") },
+                                                onClick = {
+                                                    showMergeMenu = false
+                                                    onMergeClick(other)
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             }
-                        }
-                        IconButton(onClick = onDelete) {
-                            Icon(
-                                Icons.Default.Delete,
-                                contentDescription = "删除",
-                                tint = MaterialTheme.colorScheme.error
-                            )
+                            IconButton(onClick = onDelete) {
+                                Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = "删除",
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
                         }
                     }
                 }
             )
         }
     }
+}
+
+@Composable
+private fun TagAnalysisDialog(
+    result: TagAnalysisResult,
+    page: Int,
+    onShowFirst: () -> Unit,
+    onShowNext: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val startIndex = if (page == 0) 0 else 10
+    val visibleTags = result.tags.drop(startIndex).take(10)
+    val rangeText = if (page == 0) "前 10 个标签" else "第 11-20 个标签"
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("地点标签分析") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "已分析 ${result.selectedLocationCount} 个地点，共 ${result.itemCount} 件物品，标签出现 ${result.tagTotalCount} 次。",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+
+                when {
+                    result.itemCount == 0 -> {
+                        Text("这些地点下还没有物品，无法分析标签。")
+                    }
+                    result.tagTotalCount == 0 -> {
+                        Text("这些地点下的物品还没有标签，无法分析高频类别。")
+                    }
+                    visibleTags.isEmpty() -> {
+                        Text("没有更多标签可展示。")
+                    }
+                    else -> {
+                        Text(
+                            rangeText,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                        )
+                        visibleTags.forEachIndexed { index, tag ->
+                            val rank = startIndex + index + 1
+                            val percentText = "${(tag.percentage * 1000).roundToInt() / 10f}%"
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        "$rank. ${tag.name}",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(
+                                        "${tag.count} 次  $percentText",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                LinearProgressIndicator(
+                                    progress = { tag.percentage },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("关闭") }
+        },
+        dismissButton = {
+            if (result.tags.size > 10) {
+                if (page == 0) {
+                    TextButton(onClick = onShowNext) { Text("展示后10个标签") }
+                } else {
+                    TextButton(onClick = onShowFirst) { Text("展示前10个标签") }
+                }
+            }
+        }
+    )
 }
 
 private fun findBestDropTarget(

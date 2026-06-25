@@ -19,7 +19,8 @@ data class BatchImportState(
     val showEditor: Boolean = false,
     val parseError: String? = null,
     val result: BatchResult? = null,
-    val isExecuting: Boolean = false
+    val isExecuting: Boolean = false,
+    val autoReturnAfterExecution: Boolean = false
 )
 
 class BatchImportViewModel(
@@ -74,7 +75,8 @@ class BatchImportViewModel(
         _state.value = _state.value.copy(
             operations = operations,
             showClipboardConfirmDialog = false,
-            isExecuting = true
+            isExecuting = true,
+            autoReturnAfterExecution = true
         )
         viewModelScope.launch {
             val result = batchRepository.executeBatch(operations)
@@ -105,7 +107,8 @@ class BatchImportViewModel(
                 showEditor = false,
                 isExecuting = true,
                 parseError = null,
-                result = null
+                result = null,
+                autoReturnAfterExecution = true
             )
             viewModelScope.launch {
                 val result = batchRepository.executeBatch(operations)
@@ -126,7 +129,8 @@ class BatchImportViewModel(
             showClipboardConfirmDialog = false,
             showEditor = true,
             operations = null,
-            result = null
+            result = null,
+            autoReturnAfterExecution = false
         )
     }
 
@@ -150,7 +154,7 @@ class BatchImportViewModel(
 
     fun executeBatch() {
         val operations = _state.value.operations ?: return
-        _state.value = _state.value.copy(isExecuting = true)
+        _state.value = _state.value.copy(isExecuting = true, autoReturnAfterExecution = false)
         viewModelScope.launch {
             val result = batchRepository.executeBatch(operations)
             _state.value = _state.value.copy(result = result, isExecuting = false)

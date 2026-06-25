@@ -17,7 +17,9 @@ import com.findit.app.ui.location.LocationScreen
 fun AppNavGraph(
     navController: NavHostController,
     pendingJson: String? = null,
-    onPendingJsonConsumed: () -> Unit = {}
+    onPendingJsonConsumed: () -> Unit = {},
+    homeChromeCollapseFraction: Float = 0f,
+    onHomeChromeCollapseFractionChange: (Float) -> Unit = {}
 ) {
     NavHost(navController = navController, startDestination = Screen.Home.route) {
 
@@ -34,7 +36,9 @@ fun AppNavGraph(
                 },
                 onHelpClick = {
                     navController.navigate(Screen.Help.route)
-                }
+                },
+                chromeCollapseFraction = homeChromeCollapseFraction,
+                onChromeCollapseFractionChange = onHomeChromeCollapseFractionChange
             )
         }
 

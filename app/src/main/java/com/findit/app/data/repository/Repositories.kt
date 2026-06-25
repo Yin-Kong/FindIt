@@ -76,6 +76,8 @@ class LocationRepository(
 ) {
     fun getCanonicalLocations(): Flow<List<Location>> = locationDao.getCanonicalLocations()
 
+    fun getAllItems(): Flow<List<ItemWithDetails>> = itemDao.getAllItems()
+
     suspend fun getLocationById(id: Long): Location? = locationDao.getLocationById(id)
 
     suspend fun addLocation(name: String): Long {

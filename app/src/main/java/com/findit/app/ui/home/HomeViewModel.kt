@@ -71,5 +71,16 @@ class HomeViewModel(
         }
     }
 
+    fun deleteItem(item: ItemWithDetails) {
+        viewModelScope.launch {
+            try {
+                itemRepository.deleteItem(item.item)
+                exportMessage.value = "已删除「${item.item.name}」"
+            } catch (e: Exception) {
+                exportMessage.value = "删除失败: ${e.message}"
+            }
+        }
+    }
+
     fun clearExportMessage() { exportMessage.value = null }
 }
