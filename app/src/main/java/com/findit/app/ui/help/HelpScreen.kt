@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -16,19 +17,42 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.findit.app.ui.settings.ListRenderMode
+import com.findit.app.ui.settings.getAutoRenderThreshold
+import com.findit.app.ui.settings.getListRenderMode
+import com.findit.app.ui.settings.isAutoHideChromeEnabled
+import com.findit.app.ui.settings.isColorfulTagMarkersEnabled
+import com.findit.app.ui.settings.setAutoRenderThreshold
+import com.findit.app.ui.settings.setAutoHideChromeEnabled
+import com.findit.app.ui.settings.setColorfulTagMarkersEnabled
+import com.findit.app.ui.settings.setListRenderMode
 
 private const val JSON_TEMPLATE = """{
   "add": [
@@ -212,6 +236,52 @@ findit://json?payload=%7B%22query%22%3A%5B%7B%22query%22%3A%22%E6%84%9F%E5%86%92
 @Composable
 fun HelpScreen(onNavigateBack: () -> Unit) {
     val context = LocalContext.current
+    var colorfulTagMarkers by remember { mutableStateOf(isColorfulTagMarkersEnabled(context)) }
+    var autoHideChrome by remember { mutableStateOf(isAutoHideChromeEnabled(context)) }
+    var listRenderMode by remember { mutableStateOf(getListRenderMode(context)) }
+    var renderModeExpanded by remember { mutableStateOf(false) }
+    var autoRenderThreshold by remember { mutableStateOf(getAutoRenderThreshold(context)) }
+    var showThresholdDialog by remember { mutableStateOf(false) }
+    var thresholdInput by remember { mutableStateOf(autoRenderThreshold.toString()) }
+
+    if (showThresholdDialog) {
+        AlertDialog(
+            onDismissRequest = { showThresholdDialog = false },
+            title = { Text("自动模式阈值") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "当物品数量小于或等于该数值时使用普通滚动；超过后使用懒加载滚动。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = thresholdInput,
+                        onValueChange = { value ->
+                            thresholdInput = value.filter { it.isDigit() }.take(4)
+                        },
+                        singleLine = true,
+                        label = { Text("阈值") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val threshold = thresholdInput.toIntOrNull()?.coerceAtLeast(1) ?: 64
+                        autoRenderThreshold = threshold
+                        thresholdInput = threshold.toString()
+                        setAutoRenderThreshold(context, threshold)
+                        showThresholdDialog = false
+                    }
+                ) { Text("保存") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showThresholdDialog = false }) { Text("取消") }
+            }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -244,6 +314,167 @@ fun HelpScreen(onNavigateBack: () -> Unit) {
                         "findIt 是一款家庭物品管理工具，帮助你记录物品的存放位置，方便日后查找。",
                         style = MaterialTheme.typography.bodyMedium
                     )
+                }
+            }
+
+            Section(title = "显示设置") {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                "彩色 tag 分隔块",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                "关闭后，物品卡片中的 tag 分隔块会统一使用固定颜色，可能减少部分设备上的滚动开销。",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = colorfulTagMarkers,
+                            onCheckedChange = { enabled ->
+                                colorfulTagMarkers = enabled
+                                setColorfulTagMarkersEnabled(context, enabled)
+                            }
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .padding(bottom = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                "滑动时自动收起顶栏和底栏",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                "默认关闭以保持更稳定的信息流手感；开启后，下滑浏览时会隐藏顶栏和底栏，上滑时恢复。",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = autoHideChrome,
+                            onCheckedChange = { enabled ->
+                                autoHideChrome = enabled
+                                setAutoHideChromeEnabled(context, enabled)
+                            }
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .padding(bottom = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                "列表渲染模式",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                "自动模式会在少量数据时使用普通滚动，数据变多后切换为懒加载滚动。",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            ExposedDropdownMenuBox(
+                                expanded = renderModeExpanded,
+                                onExpandedChange = { renderModeExpanded = !renderModeExpanded }
+                            ) {
+                                OutlinedTextField(
+                                    value = listRenderMode.label,
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    singleLine = true,
+                                    label = { Text("模式") },
+                                    trailingIcon = {
+                                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = renderModeExpanded)
+                                    },
+                                    modifier = Modifier
+                                        .menuAnchor()
+                                        .fillMaxWidth()
+                                )
+                                ExposedDropdownMenu(
+                                    expanded = renderModeExpanded,
+                                    onDismissRequest = { renderModeExpanded = false }
+                                ) {
+                                    ListRenderMode.entries.forEach { mode ->
+                                        DropdownMenuItem(
+                                            text = { Text(mode.label) },
+                                            onClick = {
+                                                listRenderMode = mode
+                                                setListRenderMode(context, mode)
+                                                renderModeExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .padding(bottom = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                "自动模式阈值：$autoRenderThreshold",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                "默认 64，可按这台设备的实际手感调整。",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        TextButton(
+                            onClick = {
+                                thresholdInput = autoRenderThreshold.toString()
+                                showThresholdDialog = true
+                            }
+                        ) {
+                            Text("修改")
+                        }
+                    }
                 }
             }
 

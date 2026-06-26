@@ -6,8 +6,6 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -29,6 +27,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.findit.app.data.model.ItemWithDetails
@@ -53,12 +52,13 @@ private val TagMarkerColors = listOf(
     Color(0xFF90A4AE)
 )
 
-@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ItemCard(
     item: ItemWithDetails,
     onClick: () -> Unit,
     onLongClick: () -> Unit = {},
+    colorfulTagMarkers: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -92,29 +92,36 @@ fun ItemCard(
             }
 
             if (item.tags.isNotEmpty()) {
-                FlowRow(
+                val visibleTags = item.tags.take(5)
+                val overflowCount = item.tags.size - visibleTags.size
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    item.tags.forEach { tag ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(2.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .width(3.dp)
-                                    .height(14.dp)
-                                    .clip(RoundedCornerShape(2.dp))
-                                    .background(tagMarkerColor(tag.name).copy(alpha = 0.5f))
-                            )
-                            Text(
-                                text = tag.name,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                    visibleTags.forEachIndexed { index, tag ->
+                        TagMarkerLabel(
+                            text = tag.name,
+                            color = if (colorfulTagMarkers) {
+                                tagMarkerColor(tag.name)
+                            } else {
+                                MaterialTheme.colorScheme.primary
+                            },
+                            modifier = Modifier.weight(1f),
+                            alignment = when (index) {
+                                0 -> Alignment.CenterStart
+                                visibleTags.lastIndex -> Alignment.CenterEnd
+                                else -> Alignment.Center
+                            }
+                        )
+                    }
+                    if (overflowCount > 0) {
+                        TagMarkerLabel(
+                            text = "+$overflowCount",
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.weight(1f),
+                            alignment = Alignment.CenterEnd
+                        )
                     }
                 }
             }
@@ -129,6 +136,39 @@ fun ItemCard(
                 )
             }
 
+        }
+    }
+}
+
+@Composable
+private fun TagMarkerLabel(
+    text: String,
+    color: Color,
+    modifier: Modifier = Modifier,
+    alignment: Alignment = Alignment.CenterStart
+) {
+    Box(
+        modifier = modifier,
+        contentAlignment = alignment
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(1.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(3.dp)
+                    .height(14.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(color.copy(alpha = 0.5f))
+            )
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }

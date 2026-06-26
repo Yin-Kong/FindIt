@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#3F51B5</color>
+    <color name="ic_launcher_background">#F8F3D5</color>
+    <color name="findit_launch_background">#F8F3D5</color>
+    <color name="findit_splash_box">#D0954F</color>
+    <color name="findit_splash_box_shadow">#B77248</color>
+    <color name="findit_splash_tail">#7D6D5C</color>
+    <color name="findit_splash_item">#D94F42</color>
 </resources>

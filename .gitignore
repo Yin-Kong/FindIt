@@ -10,3 +10,6 @@
 .cxx
 local.properties
 .kotlin
+*.jks
+*.keystore
+/local_backups/

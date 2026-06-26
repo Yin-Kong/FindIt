@@ -18,8 +18,8 @@ fun AppNavGraph(
     navController: NavHostController,
     pendingJson: String? = null,
     onPendingJsonConsumed: () -> Unit = {},
-    homeChromeCollapseFraction: Float = 0f,
-    onHomeChromeCollapseFractionChange: (Float) -> Unit = {}
+    homeChromeHidden: Boolean = false,
+    onHomeChromeHiddenChange: (Boolean) -> Unit = {}
 ) {
     NavHost(navController = navController, startDestination = Screen.Home.route) {
 
@@ -37,8 +37,8 @@ fun AppNavGraph(
                 onHelpClick = {
                     navController.navigate(Screen.Help.route)
                 },
-                chromeCollapseFraction = homeChromeCollapseFraction,
-                onChromeCollapseFractionChange = onHomeChromeCollapseFractionChange
+                chromeHidden = homeChromeHidden,
+                onChromeHiddenChange = onHomeChromeHiddenChange
             )
         }
 

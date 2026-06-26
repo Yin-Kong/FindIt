@@ -2,13 +2,12 @@ package com.findit.app.ui.location
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.findit.app.data.model.ItemWithDetails
 import com.findit.app.data.model.Location
 import com.findit.app.data.repository.LocationRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 data class TagAnalysisItem(
@@ -45,17 +44,10 @@ class LocationViewModel(
 
     private val _state = MutableStateFlow(LocationState())
     val state: StateFlow<LocationState> = _state.asStateFlow()
-    private var allItems: List<ItemWithDetails> = emptyList()
 
     init {
         viewModelScope.launch {
-            combine(
-                locationRepository.getCanonicalLocations(),
-                locationRepository.getAllItems()
-            ) { locations, items ->
-                locations to items
-            }.collect { (locations, items) ->
-                allItems = items
+            locationRepository.getCanonicalLocations().collect { locations ->
                 _state.value = _state.value.copy(
                     locations = locations,
                     selectedLocationIds = _state.value.selectedLocationIds
@@ -171,36 +163,40 @@ class LocationViewModel(
             return
         }
 
-        val selectedItems = allItems.filter { item ->
-            item.location?.id in selectedIds
-        }
-        val tagCounts = selectedItems
-            .flatMap { item -> item.tags.map { it.name.trim() }.filter { it.isNotEmpty() } }
-            .groupingBy { it }
-            .eachCount()
-        val tagTotalCount = tagCounts.values.sum()
-        val tags = tagCounts
-            .entries
-            .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
-            .map { (name, count) ->
-                TagAnalysisItem(
-                    name = name,
-                    count = count,
-                    percentage = if (tagTotalCount == 0) 0f else count.toFloat() / tagTotalCount
-                )
+        viewModelScope.launch {
+            // Load items on demand instead of keeping them in memory
+            val allItems = locationRepository.getAllItems().first()
+            val selectedItems = allItems.filter { item ->
+                item.location?.id in selectedIds
             }
+            val tagCounts = selectedItems
+                .flatMap { item -> item.tags.map { it.name.trim() }.filter { it.isNotEmpty() } }
+                .groupingBy { it }
+                .eachCount()
+            val tagTotalCount = tagCounts.values.sum()
+            val tags = tagCounts
+                .entries
+                .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
+                .map { (name, count) ->
+                    TagAnalysisItem(
+                        name = name,
+                        count = count,
+                        percentage = if (tagTotalCount == 0) 0f else count.toFloat() / tagTotalCount
+                    )
+                }
 
-        _state.value = _state.value.copy(
-            showTagAnalysisDialog = true,
-            tagAnalysisPage = 0,
-            tagAnalysisResult = TagAnalysisResult(
-                selectedLocationCount = selectedIds.size,
-                itemCount = selectedItems.size,
-                tagTotalCount = tagTotalCount,
-                tags = tags
-            ),
-            error = null
-        )
+            _state.value = _state.value.copy(
+                showTagAnalysisDialog = true,
+                tagAnalysisPage = 0,
+                tagAnalysisResult = TagAnalysisResult(
+                    selectedLocationCount = selectedIds.size,
+                    itemCount = selectedItems.size,
+                    tagTotalCount = tagTotalCount,
+                    tags = tags
+                ),
+                error = null
+            )
+        }
     }
 
     fun showNextTagAnalysisPage() {

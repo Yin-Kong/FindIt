@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="findit_launch_background">#F8F3D5</color>
+    <color name="findit_splash_box">#F1BC7B</color>
+    <color name="findit_splash_box_shadow">#D0954F</color>
+    <color name="findit_splash_tail">#CDBFAA</color>
+    <color name="findit_splash_item">#FFB4AA</color>
+</resources>

@@ -26,7 +26,26 @@ private val LightColorScheme = lightColorScheme(
     background = Background,
     onBackground = OnBackground,
     surface = Surface,
-    onSurface = OnSurface
+    onSurface = OnSurface,
+    surfaceDim = SurfaceDim,
+    surfaceBright = SurfaceBright,
+    surfaceContainerLowest = SurfaceContainerLowest,
+    surfaceContainerLow = SurfaceContainerLow,
+    surfaceContainer = SurfaceContainer,
+    surfaceContainerHigh = SurfaceContainerHigh,
+    surfaceContainerHighest = SurfaceContainerHighest,
+    surfaceVariant = SurfaceVariant,
+    onSurfaceVariant = OnSurfaceVariant,
+    outline = Outline,
+    outlineVariant = OutlineVariant,
+    error = Error,
+    onError = OnError,
+    errorContainer = ErrorContainer,
+    onErrorContainer = OnErrorContainer,
+    surfaceTint = Primary,
+    inversePrimary = PrimaryDark,
+    inverseSurface = OnSurface,
+    inverseOnSurface = Surface
 )
 
 private val DarkColorScheme = darkColorScheme(
@@ -45,13 +64,32 @@ private val DarkColorScheme = darkColorScheme(
     background = BackgroundDark,
     onBackground = OnBackgroundDark,
     surface = SurfaceDark,
-    onSurface = OnSurfaceDark
+    onSurface = OnSurfaceDark,
+    surfaceDim = SurfaceDimDark,
+    surfaceBright = SurfaceBrightDark,
+    surfaceContainerLowest = SurfaceContainerLowestDark,
+    surfaceContainerLow = SurfaceContainerLowDark,
+    surfaceContainer = SurfaceContainerDark,
+    surfaceContainerHigh = SurfaceContainerHighDark,
+    surfaceContainerHighest = SurfaceContainerHighestDark,
+    surfaceVariant = SurfaceVariantDark,
+    onSurfaceVariant = OnSurfaceVariantDark,
+    outline = OutlineDark,
+    outlineVariant = OutlineVariantDark,
+    error = ErrorDark,
+    onError = OnErrorDark,
+    errorContainer = ErrorContainerDark,
+    onErrorContainer = OnErrorContainerDark,
+    surfaceTint = PrimaryDark,
+    inversePrimary = Primary,
+    inverseSurface = OnSurfaceDark,
+    inverseOnSurface = SurfaceDark
 )
 
 @Composable
 fun FindItTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
